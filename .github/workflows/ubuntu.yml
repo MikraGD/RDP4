@@ -6,24 +6,27 @@ on:
 jobs:
   rdp:
     runs-on: ubuntu-latest
-    timeout-minutes: 360
+    timeout-minutes: 3600
 
     steps:
       - name: Install Desktop and xRDP
         run: |
           sudo apt update
           sudo DEBIAN_FRONTEND=noninteractive apt install -y xfce4 xfce4-goodies xrdp
+
+          # Enable and start xRDP
           sudo systemctl enable xrdp
           sudo systemctl start xrdp
 
-          # Create user with simple password
+          # Unlock ubuntu user (if locked) and set password
+          sudo passwd -u ubuntu
           USERNAME="ubuntu"
           PASSWORD="RDP12345"
           echo "$USERNAME:$PASSWORD" | sudo chpasswd
           echo "RDP_CREDENTIALS=User: $USERNAME | Pass: $PASSWORD" >> $GITHUB_ENV
 
-          # Set XFCE as default session
-          echo xfce4-session > ~/.xsession
+          # Set XFCE as default session for ubuntu
+          sudo -u $USERNAME bash -c 'echo xfce4-session > ~/.xsession'
 
       - name: Install Tailscale
         run: |
