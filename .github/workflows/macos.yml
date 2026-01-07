@@ -1,31 +1,35 @@
-name: MacOS-TV-Station-All-In-One
+name: MacOS-TV-Station-Final
 on: 
   workflow_dispatch:
 
 jobs:
   launch-mac:
     runs-on: macos-latest
-    timeout-minutes: 360  # GitHub's maximum limit for a single run
+    timeout-minutes: 360
     steps:
       - name: Setup Station Infrastructure
         run: |
-          # 1. Install Tailscale CLI (Homebrew is pre-installed on GitHub runners)
-          echo "Installing Tailscale..."
+          # 1. Install Tailscale CLI via Homebrew (avoids App Store issues)
+          echo "Installing Tailscale CLI..."
           brew install tailscale
-          
-          # 2. Start the Tailscale background service
+
+          # 2. Start the tailscaled daemon (required for the 'up' command)
+          # We use sudo for brew services so it runs as a system-wide daemon
+          echo "Starting Tailscale service..."
           sudo brew services start tailscale
-          sleep 5
           
-          # 3. Connect to Tailnet
-          echo "Connecting to Tailscale..."
+          # 3. Wait for the daemon to initialize
+          sleep 10
+          
+          # 4. Authenticate and bring Tailscale up
+          echo "Connecting to Tailnet..."
           sudo tailscale up --authkey=${{ secrets.TAILSCALE_AUTH_KEY }} --hostname=gh-mac-tv
           
-          # 4. Create TV Admin User
+          # 5. Create TV Admin User for remote login
           echo "Creating User..."
           sudo sysadminctl -addUser tvadmin -fullName "TV Operator" -password "tvadmin123" -admin
           
-          # 5. Enable Screen Sharing (VNC) & Set Password
+          # 6. Enable VNC Screen Sharing and set a dedicated password
           echo "Enabling VNC..."
           sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart \
           -activate -configure -access -on \
@@ -43,9 +47,8 @@ jobs:
           echo "System User:  tvadmin"
           echo "System Pass:  tvadmin123"
           echo "=========================================="
-          echo "Note: This runner will shut down in 6 hours."
           
-          # Keep-alive loop
+          # Keep the runner alive for the duration of the job
           while true; do
             echo "[$(date)] Station Heartbeat: Broadcasting..."
             sleep 300
