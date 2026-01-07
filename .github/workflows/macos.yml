@@ -1,0 +1,37 @@
+name: MacOS-TV-Station
+on: 
+  workflow_dispatch:
+
+jobs:
+  launch-mac:
+    runs-on: macos-latest
+    steps:
+      - name: Install Tailscale
+        run: |
+          curl -fsSL https://tailscale.com/install.sh | sh
+          sudo tailscaled install-system-daemon
+          sudo tailscale up --authkey=${{ secrets.TAILSCALE_AUTH_KEY }} --hostname=gh-mac-tv
+
+      - name: Enable Screen Sharing (VNC)
+        run: |
+          # Enable Remote Management and Screen Sharing
+          sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart \
+          -activate -configure -access -on \
+          -clientopts -setvncpw -vncpw "your-vnc-password-here" \
+          -restart -agent -privs -all
+
+      - name: Create TV Operator Account
+        run: |
+          # Create a user named 'tvadmin' with password 'tv123'
+          sudo sysadminctl -addUser tvadmin -fullName "TV Operator" -password "tv123" -admin
+
+      - name: Keep Station Online
+        run: |
+          TS_IP=$(tailscale ip -4)
+          echo "=========================================="
+          echo "MACOS TV STATION IS ONLINE"
+          echo "Address: $TS_IP"
+          echo "User: tvadmin | Pass: tv123"
+          echo "VNC Password: your-vnc-password-here"
+          echo "=========================================="
+          while true; do sleep 300; done
