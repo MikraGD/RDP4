@@ -1,0 +1,55 @@
+name: MacOS-TV-Station-Final
+on: 
+  workflow_dispatch:
+
+jobs:
+  launch-mac:
+    runs-on: macos-latest
+    timeout-minutes: 360
+    steps:
+      - name: Setup Station Infrastructure
+        run: |
+          # 1. Install Tailscale CLI via Homebrew (avoids App Store issues)
+          echo "Installing Tailscale CLI..."
+          brew install tailscale
+
+          # 2. Start the tailscaled daemon (required for the 'up' command)
+          # We use sudo for brew services so it runs as a system-wide daemon
+          echo "Starting Tailscale service..."
+          sudo brew services start tailscale
+          
+          # 3. Wait for the daemon to initialize
+          sleep 10
+          
+          # 4. Authenticate and bring Tailscale up
+          echo "Connecting to Tailnet..."
+          sudo tailscale up --authkey=${{ secrets.TAILSCALE_AUTH_KEY }} --hostname=gh-mac-tv
+          
+          # 5. Create TV Admin User for remote login
+          echo "Creating User..."
+          sudo sysadminctl -addUser tvadmin -fullName "TV Operator" -password "tvadmin123" -admin
+          
+          # 6. Enable VNC Screen Sharing and set a dedicated password
+          echo "Enabling VNC..."
+          sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart \
+          -activate -configure -access -on \
+          -clientopts -setvncpw -vncpw "tv12345" \
+          -restart -agent -privs -all
+
+      - name: Broadcast Status & Keep Alive
+        run: |
+          TS_IP=$(tailscale ip -4)
+          echo "=========================================="
+          echo "      YOUR TV STATION IS ONLINE           "
+          echo "=========================================="
+          echo "Tailscale IP: $TS_IP"
+          echo "VNC Password: tv12345"
+          echo "System User:  tvadmin"
+          echo "System Pass:  tvadmin123"
+          echo "=========================================="
+          
+          # Keep the runner alive for the duration of the job
+          while true; do
+            echo "[$(date)] Station Heartbeat: Broadcasting..."
+            sleep 300
+          done
