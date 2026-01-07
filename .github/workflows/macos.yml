@@ -1,37 +1,52 @@
-name: MacOS-TV-Station
+name: MacOS-TV-Station-All-In-One
 on: 
   workflow_dispatch:
 
 jobs:
   launch-mac:
     runs-on: macos-latest
+    timeout-minutes: 360  # GitHub's maximum limit for a single run
     steps:
-      - name: Install Tailscale
+      - name: Setup Station Infrastructure
         run: |
-          curl -fsSL https://tailscale.com/install.sh | sh
-          sudo tailscaled install-system-daemon
+          # 1. Install Tailscale CLI (Homebrew is pre-installed on GitHub runners)
+          echo "Installing Tailscale..."
+          brew install tailscale
+          
+          # 2. Start the Tailscale background service
+          sudo brew services start tailscale
+          sleep 5
+          
+          # 3. Connect to Tailnet
+          echo "Connecting to Tailscale..."
           sudo tailscale up --authkey=${{ secrets.TAILSCALE_AUTH_KEY }} --hostname=gh-mac-tv
-
-      - name: Enable Screen Sharing (VNC)
-        run: |
-          # Enable Remote Management and Screen Sharing
+          
+          # 4. Create TV Admin User
+          echo "Creating User..."
+          sudo sysadminctl -addUser tvadmin -fullName "TV Operator" -password "tvadmin123" -admin
+          
+          # 5. Enable Screen Sharing (VNC) & Set Password
+          echo "Enabling VNC..."
           sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart \
           -activate -configure -access -on \
-          -clientopts -setvncpw -vncpw "your-vnc-password-here" \
+          -clientopts -setvncpw -vncpw "tv12345" \
           -restart -agent -privs -all
 
-      - name: Create TV Operator Account
-        run: |
-          # Create a user named 'tvadmin' with password 'tv123'
-          sudo sysadminctl -addUser tvadmin -fullName "TV Operator" -password "tv123" -admin
-
-      - name: Keep Station Online
+      - name: Broadcast Status & Keep Alive
         run: |
           TS_IP=$(tailscale ip -4)
           echo "=========================================="
-          echo "MACOS TV STATION IS ONLINE"
-          echo "Address: $TS_IP"
-          echo "User: tvadmin | Pass: tv123"
-          echo "VNC Password: your-vnc-password-here"
+          echo "      YOUR TV STATION IS ONLINE           "
           echo "=========================================="
-          while true; do sleep 300; done
+          echo "Tailscale IP: $TS_IP"
+          echo "VNC Password: tv12345"
+          echo "System User:  tvadmin"
+          echo "System Pass:  tvadmin123"
+          echo "=========================================="
+          echo "Note: This runner will shut down in 6 hours."
+          
+          # Keep-alive loop
+          while true; do
+            echo "[$(date)] Station Heartbeat: Broadcasting..."
+            sleep 300
+          done
